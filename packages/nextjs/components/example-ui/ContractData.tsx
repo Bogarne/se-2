@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import Marquee from "react-fast-marquee";
-import { useAnimationConfig, useScaffoldContractRead, useScaffoldEventSubscriber } from "~~/hooks/scaffold-eth";
+import { useAccount } from "wagmi";
+import {
+  useAnimationConfig,
+  useScaffoldContract,
+  useScaffoldContractRead,
+  useScaffoldEventHistory,
+  useScaffoldEventSubscriber,
+} from "~~/hooks/scaffold-eth";
 
 const MARQUEE_PERIOD_IN_SEC = 5;
 
 export const ContractData = () => {
+  const { address } = useAccount();
   const [transitionEnabled, setTransitionEnabled] = useState(true);
   const [isRightDirection, setIsRightDirection] = useState(false);
   const [marqueeSpeed, setMarqueeSpeed] = useState(0);
@@ -25,10 +33,30 @@ export const ContractData = () => {
   useScaffoldEventSubscriber({
     contractName: "YourContract",
     eventName: "GreetingChange",
-    listener: (greetingSetter, newGreeting, premium, value) => {
-      console.log(greetingSetter, newGreeting, premium, value);
+    listener: logs => {
+      logs.map(log => {
+        const { greetingSetter, value, premium, newGreeting } = log.args;
+        console.log("📡 GreetingChange event", greetingSetter, value, premium, newGreeting);
+      });
     },
   });
+
+  const {
+    data: myGreetingChangeEvents,
+    isLoading: isLoadingEvents,
+    error: errorReadingEvents,
+  } = useScaffoldEventHistory({
+    contractName: "YourContract",
+    eventName: "GreetingChange",
+    fromBlock: process.env.NEXT_PUBLIC_DEPLOY_BLOCK ? BigInt(process.env.NEXT_PUBLIC_DEPLOY_BLOCK) : 0n,
+    filters: { greetingSetter: address },
+    blockData: true,
+  });
+
+  console.log("Events:", isLoadingEvents, errorReadingEvents, myGreetingChangeEvents);
+
+  const { data: yourContract } = useScaffoldContract({ contractName: "YourContract" });
+  console.log("yourContract: ", yourContract);
 
   const { showAnimation } = useAnimationConfig(totalCounter);
 

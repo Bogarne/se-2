@@ -16,10 +16,10 @@ import { burnerWalletConfig } from "~~/services/web3/wagmi-burner/burnerWalletCo
 import { getTargetNetwork } from "~~/utils/scaffold-eth";
 
 const configuredNetwork = getTargetNetwork();
+const { onlyLocalBurnerWallet } = scaffoldConfig;
 
 // We always want to have mainnet enabled (ENS resolution, ETH price, etc). But only once.
-const enabledChains =
-  (configuredNetwork.id as number) === 1 ? [configuredNetwork] : [configuredNetwork, chains.mainnet];
+const enabledChains = configuredNetwork.id === 1 ? [configuredNetwork] : [configuredNetwork, chains.mainnet];
 
 /**
  * Chains for the app
@@ -29,11 +29,11 @@ export const appChains = configureChains(
   [
     alchemyProvider({
       apiKey: scaffoldConfig.alchemyApiKey,
-      priority: 0,
     }),
-    publicProvider({ priority: 1 }),
+    publicProvider(),
   ],
   {
+    // We might not need this checkout https://github.com/scaffold-eth/scaffold-eth-2/pull/45#discussion_r1024496359, will test and remove this before merging
     stallTimeout: 3_000,
     // Sets pollingInterval if using chain's other than local hardhat chain
     ...(configuredNetwork.id !== chains.hardhat.id
@@ -44,18 +44,18 @@ export const appChains = configureChains(
   },
 );
 
-/**
- * list of burner wallet compatable chains
- */
-export const burnerChains = configureChains(
-  [chains.hardhat],
-  [
-    alchemyProvider({
-      apiKey: scaffoldConfig.alchemyApiKey,
-    }),
-    publicProvider(),
-  ],
-);
+const walletsOptions = { chains: appChains.chains, projectId: scaffoldConfig.walletConnectProjectId };
+const wallets = [
+  metaMaskWallet({ ...walletsOptions, shimDisconnect: true }),
+  walletConnectWallet(walletsOptions),
+  ledgerWallet(walletsOptions),
+  braveWallet(walletsOptions),
+  coinbaseWallet({ ...walletsOptions, appName: "scaffold-eth-2" }),
+  rainbowWallet(walletsOptions),
+  ...(configuredNetwork.id === chains.hardhat.id || !onlyLocalBurnerWallet
+    ? [burnerWalletConfig({ chains: [appChains.chains[0]] })]
+    : []),
+];
 
 /**
  * wagmi connectors for the wagmi context
@@ -63,14 +63,6 @@ export const burnerChains = configureChains(
 export const wagmiConnectors = connectorsForWallets([
   {
     groupName: "Supported Wallets",
-    wallets: [
-      metaMaskWallet({ chains: appChains.chains, shimDisconnect: true }),
-      walletConnectWallet({ chains: appChains.chains }),
-      ledgerWallet({ chains: appChains.chains }),
-      braveWallet({ chains: appChains.chains }),
-      coinbaseWallet({ appName: "scaffold-eth", chains: appChains.chains }),
-      rainbowWallet({ chains: appChains.chains }),
-      burnerWalletConfig({ chains: burnerChains.chains }),
-    ],
+    wallets,
   },
 ]);
